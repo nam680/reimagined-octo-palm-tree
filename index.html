@@ -1,0 +1,209 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Intelligence</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#09111f;color:white;font-family:Arial,sans-serif}
+header{background:#111e32;padding:22px 16px;border-bottom:2px solid #20d9a0}
+header h1{color:#20d9a0;margin:0;font-size:25px}
+header p{color:#aab8cc}
+main{padding:16px;max-width:900px;margin:auto}
+.card{background:#14233a;border:1px solid #263b57;border-radius:14px;padding:16px;margin:14px 0}
+h2{font-size:19px;color:#20d9a0}
+input,select,button{width:100%;padding:13px;border-radius:9px;margin:7px 0;border:1px solid #40536e;font-size:15px}
+input,select{background:#091525;color:white}
+button{background:#12b98a;color:#061b18;font-weight:bold;border:0}
+button:active{opacity:.7}
+.match,.team{background:#1b2d47;padding:13px;border-radius:10px;margin:9px 0}
+.match{text-align:center}
+.score{font-size:22px;font-weight:bold;color:#20d9a0;margin:10px}
+.team img{width:25px;height:25px;object-fit:contain;vertical-align:middle;margin-right:8px}
+.muted{color:#9aacc3;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:10px 5px;border-bottom:1px solid #34445a;text-align:left}
+footer{text-align:center;color:#899bb2;padding:25px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>⚽ FOOTBALL INTELLIGENCE</h1>
+<p>Centre d'analyse et de statistiques du football</p>
+</header>
+
+<main>
+
+<div class="card">
+<h2>🔐 Connexion API</h2>
+<input id="token" type="password" placeholder="Colle ton API Token ici">
+<button onclick="connect()">Connecter mon API</button>
+<p id="connection" class="muted">En attente de connexion...</p>
+</div>
+
+<div class="card">
+<h2>🏆 Championnats</h2>
+<select id="competition">
+<option value="PL">Premier League</option>
+<option value="CL">Champions League</option>
+<option value="FL1">Ligue 1</option>
+<option value="PD">Liga</option>
+<option value="BL1">Bundesliga</option>
+<option value="SA">Serie A</option>
+<option value="DED">Eredivisie</option>
+<option value="BSA">Brésil</option>
+<option value="WC">Coupe du monde</option>
+</select>
+<button onclick="getMatches()">Voir les matchs</button>
+<button onclick="getStandings()">Voir le classement</button>
+</div>
+
+<div class="card">
+<h2>📅 Matchs du jour</h2>
+<button onclick="todayMatches()">Actualiser les matchs</button>
+<div id="matches">Connecte ton API pour afficher les matchs.</div>
+</div>
+
+<div class="card">
+<h2>📊 Classement</h2>
+<div id="standings">Sélectionne un championnat.</div>
+</div>
+
+<div class="card">
+<h2>📈 Analyse des matchs</h2>
+<div id="analysis">Les statistiques apparaîtront ici.</div>
+</div>
+
+</main>
+
+<footer>
+FOOTBALL INTELLIGENCE © 2026
+<br><span class="muted">Données fournies par football-data.org</span>
+</footer>
+
+<script>
+const API="https://api.football-data.org/v4";
+
+function token(){
+ return document.getElementById("token").value.trim();
+}
+
+async function api(path){
+ const key=token();
+ if(!key) throw new Error("Entre d'abord ta clé API.");
+ const response=await fetch(API+path,{
+  headers:{"X-Auth-Token":key}
+ });
+ if(!response.ok){
+  throw new Error("Erreur API : "+response.status+
+  " — vérifie ta clé ou les droits de ton abonnement.");
+ }
+ return response.json();
+}
+
+function connect(){
+ if(!token()){
+  alert("Entre ton API Token.");
+  return;
+ }
+ document.getElementById("connection").textContent=
+ "Clé saisie. Vérification en cours...";
+ api("/competitions").then(data=>{
+  document.getElementById("connection").textContent=
+  "✅ API connectée ! "+data.count+" compétitions disponibles.";
+  todayMatches();
+ }).catch(e=>{
+  document.getElementById("connection").textContent="❌ "+e.message;
+ });
+}
+
+function dateToday(){
+ return new Date().toISOString().slice(0,10);
+}
+
+async function todayMatches(){
+ const box=document.getElementById("matches");
+ box.innerHTML="Chargement...";
+ try{
+  const d=dateToday();
+  const data=await api("/matches?dateFrom="+d+"&dateTo="+d);
+  showMatches(data.matches||[]);
+ }catch(e){box.textContent=e.message;}
+}
+
+async function getMatches(){
+ const code=document.getElementById("competition").value;
+ const box=document.getElementById("matches");
+ box.innerHTML="Chargement...";
+ try{
+  const data=await api("/competitions/"+code+"/matches");
+  showMatches(data.matches||[]);
+ }catch(e){box.textContent=e.message;}
+}
+
+function showMatches(matches){
+ const box=document.getElementById("matches");
+ if(!matches.length){
+  box.innerHTML="Aucun match disponible pour cette période.";
+  return;
+ }
+ box.innerHTML=matches.map(m=>{
+  const home=m.homeTeam||{};
+  const away=m.awayTeam||{};
+  const score=m.score?.fullTime||{};
+  return `
+  <div class="match">
+   <div class="muted">${m.competition?.name||""} · ${m.status}</div>
+   <div>
+    ${home.crest?`<img src="${home.crest}" width="24">`:""}
+    ${home.name||"Équipe domicile"}
+   </div>
+   <div class="score">
+    ${score.home??"-"} - ${score.away??"-"}
+   </div>
+   <div>
+    ${away.crest?`<img src="${away.crest}" width="24">`:""}
+    ${away.name||"Équipe extérieure"}
+   </div>
+   <div class="muted">${new Date(m.utcDate).toLocaleString("fr-FR")}</div>
+  </div>`;
+ }).join("");
+}
+
+async function getStandings(){
+ const code=document.getElementById("competition").value;
+ const box=document.getElementById("standings");
+ box.innerHTML="Chargement...";
+ try{
+  const data=await api("/competitions/"+code+"/standings");
+  const rows=data.standings?.find(s=>s.type==="TOTAL")?.table||[];
+  if(!rows.length){
+   box.textContent="Classement non disponible pour ce championnat.";
+   return;
+  }
+  box.innerHTML=`
+  <div style="overflow-x:auto">
+  <table>
+  <tr><th>#</th><th>Équipe</th><th>MJ</th><th>Pts</th><th>BP</th></tr>
+  ${rows.map(t=>`
+   <tr>
+   <td>${t.position}</td>
+   <td>${t.team.name}</td>
+   <td>${t.playedGames}</td>
+   <td><b>${t.points}</b></td>
+   <td>${t.goalsFor}</td>
+   </tr>`).join("")}
+  </table></div>`;
+  document.getElementById("analysis").innerHTML=
+  "Classement chargé : "+rows.length+" équipes.<br>"+
+  "Leader : "+rows[0].team.name+
+  "<br>Points : "+rows[0].points;
+ }catch(e){box.textContent=e.message;}
+}
+</script>
+</body>
+  </html>
+  
